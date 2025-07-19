@@ -9,23 +9,32 @@ from anndata import AnnData
 import squidpy as sq
 import time as t
 import pickle
-
+import os # <-- ADDED THIS IMPORT
 
 
 class fisscl:
     def __init__(self):
+        # Define a base path relative to the current file to access the Model directory
+        # This makes the path robust regardless of where the script is executed from
+        # os.path.abspath(__file__) gives the full path to fisscl.py
+        # os.path.dirname(...) gets the directory it's in (e.g., forecasts_package/forecasts/)
+        # os.path.dirname(os.path.dirname(...)) goes up one more level (e.g., forecasts_package/)
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        model_dir = os.path.join(base_dir, 'Model')
+
         # Load single-cell training data and log normalize
-        with open('Model/model_genes.pkl', 'rb') as f:
+        # Paths now use os.path.join for cross-OS compatibility
+        with open(os.path.join(model_dir, 'model_genes.pkl'), 'rb') as f:
             genes = pickle.load(f)
             
-        with open('Model/model_yng.pkl', 'rb') as f:
+        with open(os.path.join(model_dir, 'model_yng.pkl'), 'rb') as f:
             yng = pd.DataFrame(
                 pickle.load(f).todense(),
                 index = [0] * 400,
                 columns = genes
             )
             
-        with open('Model/model_old.pkl', 'rb') as f:
+        with open(os.path.join(model_dir, 'model_old.pkl'), 'rb') as f:
             old = pd.DataFrame(
                 pickle.load(f).todense(),
                 index = [1] * 400,
@@ -54,27 +63,27 @@ class fisscl:
     def _normalize(self, st_df, logarithmized, scale):
         """
         Perform quantile normalization across both the input dataset and the
-            tang et al. scRNA-seq dataset.
-            
+        tang et al. scRNA-seq dataset.
+        
         Returns the quantile normalized scRNA-seq and input datasets. Each 
-            spot/cell/barcode in both datasets will have identical means. Ties 
-            in the original datasets (i.e. zero counts) are resolved by
-            setting tied values to their means; as such each spot will similar
-            but not necessarily identical standard deviations.
+        spot/cell/barcode in both datasets will have identical means. Ties 
+        in the original datasets (i.e. zero counts) are resolved by
+        setting tied values to their means; as such each spot will similar
+        but not necessarily identical standard deviations.
 
         Parameters
         ----------
         st_raw : pandas.DataFrame
         
         A transcriptomic dataset in pandas.DataFrame type with rows 
-                corresponding to spots/cells/barcodes and columns 
-                corresponding to genes.
-                
+        corresponding to spots/cells/barcodes and columns 
+        corresponding to genes.
+        
         Returns
         -------
         list [pandas.DataFrame, pandas.DataFrame]
-            A list containing the normalized scRNA-seq dataset at index 0 and
-                the normalized input dataset at index 1.
+        A list containing the normalized scRNA-seq dataset at index 0 and
+        the normalized input dataset at index 1.
 
         """
         # Logarithmize
@@ -100,7 +109,7 @@ class fisscl:
         tst_X = quantile_normalized[self._trn_X.shape[0] : self._trn_X.shape[0] + self._tst_X.shape[0]]
         st_df = quantile_normalized[self._trn_X.shape[0] + self._tst_X.shape[0] : ]
         
-        print(trn_X.shape)
+        print(trn_X.shape) # This print statement might be verbose for a publication, consider removing or making conditional on 'verbose'
         
         # Scale data
         if scale:
@@ -164,7 +173,15 @@ class fisscl:
     
     
 if __name__ == '__main__':
-    data = sq.read.visium("Ganier/WSSKNKCLsp10446617", counts_file = 'filtered_feature_bc_matrix.h5')
-    data.var_names_make_unique()
-    clf = fisscl()
-    preds = clf.classify(data)
+    # This block will only run when fisscl.py is executed directly
+    # Adjust this path if your Ganier data is not directly in forecasts_package/Ganier/
+    print("Running fisscl.py as a standalone script (for testing purposes).")
+    try:
+        data = sq.read.visium(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "Ganier/WSSKNKCLsp10446617"), counts_file = 'filtered_feature_bc_matrix.h5')
+        data.var_names_make_unique()
+        clf = fisscl()
+        preds = clf.classify(data)
+        print("Classification successful for example data.")
+    except Exception as e:
+        print(f"Error when running example usage: {e}")
+        print("Please ensure 'Ganier/WSSKNKCLsp10446617' path is correct relative to forecasts_package root.")
